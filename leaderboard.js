@@ -3,11 +3,11 @@
    Ranking = best SCORE. Best finish time is shown too.
    ===================================================== */
 const LB_CONFIG = {
-  url: "https://fvyzlptcdzdtcwxezhau.supabase.co",
-  key: "sb_publishable_lB0eXrpJhiGdhz9T6jYNEw_sUrZaOw-",
+  url: "https://erzeatgbqjlhfiomzdxd.supabase.co",
+  key: "sb_publishable_Z2gcJa8uFEALon-Qzp1mZA_uznsEb5n",
   titles: ["Commander", "Captain", "First Officer"],   // rank 1, 2, 3
-  show: 10,       // how many players the list shows
-  maxName: 20     // longest name allowed
+  show: 10,
+  maxName: 20
 };
 
 const Leaderboard = (() => {
