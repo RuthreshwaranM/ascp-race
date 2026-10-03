@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Akasa Air Race</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-wrap">
+    <canvas id="game" width="450" height="800"></canvas>
+    <button id="boostBtn">BOOST</button>
+
+    <!-- Start screen -->
+    <div id="menu" class="overlay">
+      <h1>Akasa Air Race</h1>
+      <p>Your aircraft flies north. Hold the <b>left</b> or <b>right</b> side of the screen to steer (use both thumbs).<br>
+         On a keyboard use the arrow keys or A / D.<br>
+         Fly through gold rings to fill your boost, then press BOOST (or Space).<br>
+         Dodge the oncoming Air India and IndiGo flights and beat 3 rivals to the finish line.</p>
+      <div class="pilot">Pilot: <b id="pilotName">-</b>
+        <button id="editNameBtn" class="small-btn">Edit name</button></div>
+      <button id="playBtn">Start race</button>
+      <button id="boardBtn" class="ghost-btn">Leaderboard</button>
+      <small>Best time: <span id="bestMenu">--</span></small>
+    </div>
+
+    <!-- Finish / crash screen -->
+    <div id="result" class="overlay hidden">
+      <img id="resImg" alt="" style="display:none">
+      <h2 id="resTitle">Finished</h2>
+      <div class="stats">
+        <div><span>Place</span><b id="resPlace">-</b></div>
+        <div><span>Time</span><b id="resTime">-</b></div>
+        <div><span>Score</span><b id="resScore">0</b></div>
+        <div><span>Best time</span><b id="resBest">-</b></div>
+      </div>
+      <div id="rankLine" class="rankLine"></div>
+      <div id="topLine" class="topLine"></div>
+      <button id="retryBtn">Race again</button>
+      <button id="boardBtn2" class="ghost-btn">Leaderboard</button>
+    </div>
+
+    <!-- Name box (first time, and when editing) -->
+    <div id="nameBox" class="overlay hidden">
+      <h2>Enter your pilot name</h2>
+      <p>This name shows on the leaderboard.<br>You can change it later.</p>
+      <input id="nameInput" type="text" maxlength="20" placeholder="Your name" autocomplete="off">
+      <div id="nameErr" class="err"></div>
+      <button id="nameSave">Save</button>
+      <button id="nameCancel" class="ghost-btn">Cancel</button>
+    </div>
+
+    <!-- Leaderboard -->
+    <div id="board" class="overlay hidden">
+      <h2>Leaderboard</h2>
+      <div id="boardList"></div>
+      <button id="boardClose">Close</button>
+    </div>
+  </div>
+
+  <script src="leaderboard.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

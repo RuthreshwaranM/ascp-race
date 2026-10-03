@@ -1,0 +1,11 @@
+Put these PNG files in this folder (names can be changed in CONFIG at the top of game.js).
+All aircraft pictures: TOP view, NOSE POINTING UP, transparent background.
+
+akasa-b737.png   Your aircraft          300 x 330 px
+air-india.png    Oncoming Air India     300 x 330 px   (game turns it to face you)
+indigo.png       Oncoming IndiGo        300 x 330 px   (game turns it to face you)
+background.png   Background             900 x 1600 px  tall, top edge must join bottom edge (seamless)
+result.png       Finish / crash popup   600 x 400 px
+
+Side-view aircraft pictures (nose pointing right)? Set planeImageFacing and
+obstacleImageFacing to "right" in game.js and they will be turned automatically.
