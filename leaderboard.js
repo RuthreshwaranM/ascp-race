@@ -1,13 +1,13 @@
 /* =====================================================
    LEADERBOARD - pilot name + online scores (Supabase)
-   Ranking = best SCORE. Best finish time is shown too.
+   Ranking = best SCORE (distance + rings).
    ===================================================== */
 const LB_CONFIG = {
   url: "https://erzeatgbqjlhfiomzdxd.supabase.co",
   key: "sb_publishable_Z2gcJa8uFEALon-Qzp1mZA_uznsEb5n",
   titles: ["Commander", "Captain", "First Officer"],   // rank 1, 2, 3
-  show: 10,
-  maxName: 20
+  show: 10,       // how many players the list shows
+  maxName: 20     // longest name allowed
 };
 
 const Leaderboard = (() => {
@@ -16,7 +16,7 @@ const Leaderboard = (() => {
   const titleOf = (rank) => LB_CONFIG.titles[rank - 1] || "";
 
   let name = "", pid = "", pendingStart = false;
-  let submitted = false;   // makes sure each race is saved only once
+  let submitted = false;   // makes sure each run is saved only once
   try {
     name = localStorage.getItem("akasaPlayerName") || "";
     pid = localStorage.getItem("akasaPlayerId") || "";
@@ -34,7 +34,7 @@ const Leaderboard = (() => {
     return h;
   }
 
-  // time = finish time in seconds, or 0 if the race was not finished
+  // time is not used in the endless game (always 0)
   async function send(score, time) {
     if (!online()) return { ok: false, why: "no keys" };
     if (!name) return { ok: false, why: "no name" };
@@ -91,7 +91,7 @@ const Leaderboard = (() => {
     sc.className = "sc"; sc.textContent = p.best_score;
 
     const cn = document.createElement("div");
-    cn.className = "cn"; cn.textContent = p.best_time ? p.best_time + " s" : "no finish";
+    cn.className = "cn"; cn.textContent = "";
 
     row.append(rk, nm, sc, cn);
     return row;
@@ -117,9 +117,9 @@ const Leaderboard = (() => {
     }
   }
 
-  /* ---------- after the race ends (finish or crash) ---------- */
+  /* ---------- after the run ends ---------- */
   async function onRaceEnd(score, time) {
-    if (submitted) return;          // already saved for this race
+    if (submitted) return;          // already saved for this run
     submitted = true;
 
     const rankEl = $("rankLine"), topEl = $("topLine");
@@ -136,7 +136,7 @@ const Leaderboard = (() => {
       const rank = me + 1, t = titleOf(rank);
       rankEl.textContent = t ? "#" + rank + " - You are the " + t + "!" : "Your rank: #" + rank;
     } else {
-      rankEl.textContent = "Keep racing to reach the top 50!";
+      rankEl.textContent = "Keep flying to reach the top 50!";
     }
 
     if (!res.ok) topEl.textContent = "Could not save score (" + res.why + ")";
@@ -148,7 +148,7 @@ const Leaderboard = (() => {
   new MutationObserver(() => {
     if (resBox.classList.contains("hidden")) { submitted = false; return; }
     if (!submitted) {
-      onRaceEnd(Number($("resScore").textContent) || 0, parseFloat($("resTime").textContent) || 0);
+      onRaceEnd(Number($("resScore").textContent) || 0, 0);
     }
   }).observe(resBox, { attributes: true, attributeFilter: ["class"] });
 
