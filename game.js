@@ -1,5 +1,6 @@
 /* =====================================================
-   AKASA AIR RACE  -  edit the CONFIG block to change the game
+   AKASA AIR RACE (ENDLESS)  -  edit the CONFIG block to change the game
+   Fly as far as you can. Score = distance + rings. Highest score wins.
    ===================================================== */
 const CONFIG = {
   // ---- Your images (inside the "images" folder) ----
@@ -8,27 +9,30 @@ const CONFIG = {
   obstacleImages:  ["images/air-india.png", "images/indigo.png"],   // oncoming flights (add more files here if you like)
   obstacleImageFacing: "up",                  // which way the nose points in YOUR pictures: "up" or "right" (they are turned to face you)
   backgroundImage: "images/background.png",   // tall picture, top edge must join bottom edge (seamless)
-  resultImage:     "images/result.png",       // picture in the finish / crash popup
+  resultImage:     "images/result.png",       // picture in the crash popup
 
   // ---- Sizes ----
   planeSize:    110,       // length of the aircraft on screen
   obstacleSize: 110,       // length of the oncoming flights on screen
-  oncomingSpeed: [1.5, 3.2], // extra speed of oncoming flights (they fly towards you)
 
-  // ---- Race ----
-  raceLength:   2500,      // metres to the finish line
-  baseSpeed:    6,         // starting speed
-  maxSpeed:     9.5,       // speed at the end of the race
+  // ---- Endless run: the game gets harder slowly the further you fly ----
+  rampDistance:  5000,     // metres until full difficulty (bigger = slower rise)
+  baseSpeed:     6,        // starting speed
+  maxSpeed:      10.5,     // speed at full difficulty
+  oncomingSpeed: [1.5, 3.2], // how fast oncoming flights rush at you at the start
+  oncomingExtra: 2.0,      // extra speed they gain at full difficulty
+  obstacleGap:   [260, 460], // distance between oncoming flights at the start (smaller = harder)
+  gapShrink:     0.4,      // how much closer they come at full difficulty (0.4 = 40% closer)
+
+  // ---- Boost, lives, steering ----
   boostSpeed:   5,         // extra speed while boosting
   boostDrain:   0.6,       // boost used per frame (lower = lasts longer)
   boostPerRing: 28,        // boost gained per ring (meter holds 100)
   hearts:       3,         // lives
+  heartEvery:   [9000, 15000], // how far you fly between heart pickups (bigger = rarer)
   steerAccel:   0.7,       // how quickly the aircraft starts moving sideways (lower = smoother)
   steerFriction:0.9,       // how quickly it stops (higher = floatier)
   steerMax:     6.5,       // top sideways speed
-  obstacleGap:  [260, 460],// distance between obstacles (smaller = harder)
-  rivals:       ["Rival A", "Rival B", "Rival C"],
-  rivalSkill:   1.0,       // 1 = fair, 1.1 = hard, 0.9 = easy
 
   // ---- Colours (used when no background image) ----
   skyTop: "#1d2b64", skyBottom: "#f8a15a", accent: "#ff6a13"
@@ -39,7 +43,6 @@ const C = document.getElementById("game"), ctx = C.getContext("2d"), W = C.width
 const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const ORD = ["1st", "2nd", "3rd", "4th", "5th", "6th"];
 
 function load(src) {
   const i = new Image(); i.ok = false;
@@ -51,26 +54,30 @@ const obsImgs = CONFIG.obstacleImages.map((s) => load(s));
 const resImg = $("resImg");
 if (CONFIG.resultImage) { resImg.onload = () => (resImg.style.display = "block"); resImg.src = CONFIG.resultImage; }
 
-let best = null;
-try { best = Number(localStorage.getItem("akasaAirRaceBest")) || null; } catch (e) {}
-$("bestMenu").textContent = best ? best.toFixed(1) + " s" : "--";
+let best = 0;
+try { best = Number(localStorage.getItem("akasaEndlessBest")) || 0; } catch (e) {}
+$("bestMenu").textContent = best;
 
 /* ---------------- State ---------------- */
-let state = "menu", plane, dist, speed = 5, frame, boost, boosting = false, hearts, combo, score;
-let obstacles, rings, trail, floaters, rivals, sinceObs, sinceRing, nextObs, nextRing, shake, invuln, cd, bgY = 0, padL = false, padR = false;
+let state = "menu", plane, dist, speed = 5, frame, boost, boosting = false, hearts, combo, ringScore;
+let obstacles, rings, pickups, trail, floaters, sinceObs, sinceRing, sinceHeart, nextObs, nextRing, nextHeart;
+let shake, invuln, cd, bgY = 0, padL = false, padR = false;
 const keys = {};
 const blocks = Array.from({ length: 40 }, () => ({ x: rand(0, W), y: rand(0, 1600), w: rand(30, 80), h: rand(30, 80) }));
 const clouds = Array.from({ length: 7 }, () => ({ x: rand(0, W), y: rand(0, H), s: rand(.6, 1.4) }));
+
+const difficulty = () => Math.min(1, dist / CONFIG.rampDistance);   // 0 at the start, 1 at full difficulty
+const score = () => ringScore + Math.floor(dist);                   // distance + ring points
+const level = () => 1 + Math.floor(dist / 500);
 
 function reset() {
   const L = CONFIG.planeSize;
   let wd = L * 0.9;
   if (planeImg.ok) wd = CONFIG.planeImageFacing === "right" ? L * planeImg.height / planeImg.width : L * planeImg.width / planeImg.height;
   plane = { x: W / 2, y: H * 0.72, vx: 0, w: wd, h: L };
-  dist = 0; speed = CONFIG.baseSpeed; frame = 0; boost = 40; hearts = CONFIG.hearts; combo = 0; score = 0;
-  obstacles = []; rings = []; trail = []; floaters = []; shake = 0; invuln = 0;
-  sinceObs = 0; sinceRing = 0; nextObs = 500; nextRing = 700;
-  rivals = CONFIG.rivals.map((n) => ({ name: n, d: 0, fin: null, skill: rand(.95, 1.04), ph: rand(0, 6) }));
+  dist = 0; speed = CONFIG.baseSpeed; frame = 0; boost = 40; hearts = CONFIG.hearts; combo = 0; ringScore = 0;
+  obstacles = []; rings = []; pickups = []; trail = []; floaters = []; shake = 0; invuln = 0;
+  sinceObs = 0; sinceRing = 0; sinceHeart = 0; nextObs = 500; nextRing = 700; nextHeart = rand(CONFIG.heartEvery[0], CONFIG.heartEvery[1]);
 }
 reset();
 
@@ -103,33 +110,28 @@ $("retryBtn").addEventListener("click", startGame);
 function startGame() {
   if (window.Leaderboard && !Leaderboard.hasName()) { Leaderboard.askName(true); return; }
   reset(); cd = 180; state = "countdown";
+  for (const k in ptr) delete ptr[k];
   $("menu").classList.add("hidden"); $("result").classList.add("hidden");
   $("boostBtn").style.display = "block";
 }
 
 /* ---------------- Game events ---------------- */
-function place() { return 1 + rivals.filter((r) => r.d > dist).length; }
-
-function endRace(won) {
+function endRace() {
   state = "done"; boosting = false; $("boostBtn").style.display = "none";
-  const t = frame / 60, p = 1 + rivals.filter((r) => r.fin !== null).length;
-  if (won) {
-    score += (rivals.length + 1 - p) * 500 + hearts * 200;
-    if (!best || t < best) { best = t; try { localStorage.setItem("akasaAirRaceBest", t); } catch (e) {} }
-  }
-  $("resTitle").textContent = won ? (p === 1 ? "You won the race!" : ORD[p - 1] + " place") : "Crashed out";
-  $("resPlace").textContent = won ? ORD[p - 1] : "DNF";
-  $("resTime").textContent = won ? t.toFixed(1) + " s" : "--";
-  $("resScore").textContent = score;
-  $("resBest").textContent = best ? best.toFixed(1) + " s" : "--";
-  $("bestMenu").textContent = best ? best.toFixed(1) + " s" : "--";
+  const s = score(), isBest = s > best;
+  if (isBest) { best = s; try { localStorage.setItem("akasaEndlessBest", s); } catch (e) {} }
+  $("resTitle").textContent = isBest && s > 0 ? "New high score!" : "Crashed out";
+  $("resDist").textContent = Math.floor(dist) + " m";
+  $("resScore").textContent = s;
+  $("resBest").textContent = best;
+  $("bestMenu").textContent = best;
   $("result").classList.remove("hidden");
-  if (window.Leaderboard) Leaderboard.onRaceEnd(score, won ? t : 0);
+  if (window.Leaderboard) Leaderboard.onRaceEnd(s, 0);
 }
 
 function hit() {
   hearts--; combo = 0; speed *= 0.45; boost = Math.max(0, boost - 20); shake = 18; invuln = 100;
-  if (hearts <= 0) endRace(false);
+  if (hearts <= 0) endRace();
 }
 
 function spawnObstacle() {
@@ -143,7 +145,7 @@ function spawnObstacle() {
     x = rand(w / 2 + 10, W - w / 2 - 10);
     if (!rings.some((r) => Math.abs(r.y - y) < 260 && Math.abs(r.x - x) < 140)) break;
   }
-  const extra = rand(CONFIG.oncomingSpeed[0], CONFIG.oncomingSpeed[1]) + 1.2 * Math.min(1, dist / CONFIG.raceLength);
+  const extra = rand(CONFIG.oncomingSpeed[0], CONFIG.oncomingSpeed[1]) + CONFIG.oncomingExtra * difficulty();
   obstacles.push({ x, y, w, h: L, k, extra, vx: Math.random() < .25 ? rand(-.7, .7) : 0 });
 }
 
@@ -152,15 +154,24 @@ function spawnRings() {
   for (let i = 0; i < 4; i++) rings.push({ x: clamp(base + Math.sin(i * 1.1) * 60, 70, W - 70), y: -60 - i * 120, r: 48, done: false, got: false });
 }
 
+function spawnHeart() {
+  let x = rand(70, W - 70);
+  for (let t = 0; t < 6; t++) {
+    x = rand(70, W - 70);
+    if (!obstacles.some((o) => Math.abs(o.y + 40) < 220 && Math.abs(o.x - x) < 130)) break;
+  }
+  pickups.push({ x, y: -40, done: false });
+}
+
 /* ---------------- Update ---------------- */
 function update() {
   bgY += speed * 0.35;
   if (state === "countdown") { if (--cd <= 0) state = "racing"; return; }
   if (state !== "racing") return;
   frame++;
-  const len = CONFIG.raceLength, wantBoost = boosting && boost > 0;
+  const d = difficulty(), wantBoost = boosting && boost > 0;
 
-  const target = CONFIG.baseSpeed + (CONFIG.maxSpeed - CONFIG.baseSpeed) * dist / len + (wantBoost ? CONFIG.boostSpeed : 0);
+  const target = CONFIG.baseSpeed + (CONFIG.maxSpeed - CONFIG.baseSpeed) * d + (wantBoost ? CONFIG.boostSpeed : 0);
   speed += (target - speed) * 0.05;
   if (wantBoost) boost = Math.max(0, boost - CONFIG.boostDrain);
 
@@ -173,16 +184,15 @@ function update() {
   if (invuln > 0) invuln--;
   if (shake > 0) shake--;
 
-  // spawning (stops near the finish line)
-  const remaining = (len - dist) * 10;
-  sinceObs += speed; sinceRing += speed;
-  if (remaining > 600) {
-    if (sinceObs >= nextObs) { spawnObstacle(); sinceObs = 0; nextObs = rand(CONFIG.obstacleGap[0], CONFIG.obstacleGap[1]) * (1 - .35 * dist / len); }
-    if (sinceRing >= nextRing) { spawnRings(); sinceRing = 0; nextRing = rand(1100, 1600); }
-  }
+  // spawning (never stops - the run is endless, and flights come closer together as you go)
+  sinceObs += speed; sinceRing += speed; sinceHeart += speed;
+  if (sinceObs >= nextObs) { spawnObstacle(); sinceObs = 0; nextObs = rand(CONFIG.obstacleGap[0], CONFIG.obstacleGap[1]) * (1 - CONFIG.gapShrink * d); }
+  if (sinceRing >= nextRing) { spawnRings(); sinceRing = 0; nextRing = rand(1100, 1600); }
+  if (sinceHeart >= nextHeart) { spawnHeart(); sinceHeart = 0; nextHeart = rand(CONFIG.heartEvery[0], CONFIG.heartEvery[1]); }
 
   obstacles.forEach((o) => { o.y += speed + o.extra; o.x += o.vx; if (o.x < o.w / 2 + 10 || o.x > W - o.w / 2 - 10) o.vx *= -1; });
   rings.forEach((r) => { r.y += speed; });
+  pickups.forEach((p) => { p.y += speed; });
   obstacles = obstacles.filter((o) => o.y < H + o.h);
   rings = rings.filter((r) => r.y < H + 80);
 
@@ -199,10 +209,21 @@ function update() {
     r.done = true;
     if (Math.abs(plane.x - r.x) < r.r * .9) {
       r.got = true; combo++;
-      const m = Math.min(combo, 8); score += 100 * m; boost = Math.min(100, boost + CONFIG.boostPerRing);
-      floaters.push({ x: r.x, y: r.y, t: 45, txt: "+" + 100 * m });
+      const mult = Math.min(combo, 8); ringScore += 100 * mult; boost = Math.min(100, boost + CONFIG.boostPerRing);
+      floaters.push({ x: r.x, y: r.y, t: 45, txt: "+" + 100 * mult });
     } else combo = 0;
   });
+
+  // hearts: +1 life (or +300 points if your lives are full)
+  pickups.forEach((p) => {
+    if (p.done) return;
+    if (Math.abs(p.y - plane.y) < 34 + plane.h * .35 && Math.abs(p.x - plane.x) < 34 + plane.w * .35) {
+      p.done = true;
+      if (hearts < CONFIG.hearts) { hearts++; floaters.push({ x: p.x, y: p.y, t: 45, txt: "+1 life" }); }
+      else { ringScore += 300; floaters.push({ x: p.x, y: p.y, t: 45, txt: "+300" }); }
+    }
+  });
+  pickups = pickups.filter((p) => !p.done && p.y < H + 60);
 
   // effects
   trail.push({ x: plane.x, y: plane.y + plane.h / 2 - 4, l: 1, b: wantBoost });
@@ -211,17 +232,7 @@ function update() {
   floaters.forEach((f) => { f.y -= 1; f.t--; });
   floaters = floaters.filter((f) => f.t > 0);
 
-  // rivals
-  rivals.forEach((r) => {
-    if (r.fin !== null) return;
-    let s = (CONFIG.baseSpeed + (CONFIG.maxSpeed - CONFIG.baseSpeed) * Math.min(1, r.d / len)) * r.skill * CONFIG.rivalSkill * (1 + .07 * Math.sin(frame / 45 + r.ph));
-    const gap = r.d - dist; if (gap > 120) s *= .96; if (gap < -120) s *= 1.04;
-    r.d += s / 10;
-    if (r.d >= len) r.fin = frame / 60;
-  });
-
   dist += speed / 10;
-  if (dist >= len) { dist = len; endRace(true); }
 }
 
 /* ---------------- Drawing ---------------- */
@@ -280,13 +291,6 @@ function drawPlane() {
   ctx.restore();
 }
 
-function drawFinish() {
-  const y = plane.y - (CONFIG.raceLength - dist) * 10;
-  if (y < -40 || y > H + 40) return;
-  for (let x = 0; x < W; x += 20) for (let i = 0; i < 2; i++) { ctx.fillStyle = ((x / 20 + i) % 2) ? "#fff" : "#111"; ctx.fillRect(x, y + i * 20 - 20, 20, 20); }
-  ctx.fillStyle = "#fff"; ctx.font = "800 22px sans-serif"; ctx.textAlign = "center"; ctx.fillText("FINISH", W / 2, y - 30);
-}
-
 function drawPad(cx, dir, on) {
   ctx.globalAlpha = on ? .75 : .3; ctx.fillStyle = "#fff4e8";
   ctx.beginPath(); ctx.arc(cx, H - 60, 40, 0, 7); ctx.fill();
@@ -298,19 +302,16 @@ function drawPad(cx, dir, on) {
 function drawHUD() {
   ctx.font = "800 24px sans-serif"; ctx.textAlign = "left";
   for (let i = 0; i < CONFIG.hearts; i++) { ctx.fillStyle = i < hearts ? "#ff3b5c" : "rgba(255,255,255,.25)"; ctx.fillText("\u2665", 16 + i * 30, 36); }
-  ctx.fillStyle = "#fff4e8"; ctx.font = "800 18px sans-serif"; ctx.fillText("Score " + score, 16, 62);
-  ctx.textAlign = "right"; ctx.font = "800 24px sans-serif";
-  ctx.fillText((frame / 60).toFixed(1) + " s", W - 16, 36);
-  ctx.fillStyle = CONFIG.accent; ctx.font = "800 20px sans-serif"; ctx.fillText(ORD[place() - 1] + " / " + (rivals.length + 1), W - 16, 62);
-  // progress bar with rivals
-  const bx = 16, bw = W - 32, len = CONFIG.raceLength;
-  ctx.fillStyle = "rgba(0,0,0,.4)"; ctx.fillRect(bx, 76, bw, 8);
-  rivals.forEach((r) => { ctx.fillStyle = "#b58cff"; ctx.beginPath(); ctx.arc(bx + bw * Math.min(1, r.d / len), 80, 6, 0, 7); ctx.fill(); });
-  ctx.fillStyle = CONFIG.accent; ctx.beginPath(); ctx.arc(bx + bw * dist / len, 80, 9, 0, 7); ctx.fill();
+  ctx.fillStyle = "#fff4e8"; ctx.font = "800 20px sans-serif"; ctx.fillText("Score " + score(), 16, 64);
+  ctx.textAlign = "center"; ctx.fillStyle = CONFIG.accent; ctx.font = "800 18px sans-serif";
+  ctx.fillText("LEVEL " + level(), W / 2, 36);
+  ctx.textAlign = "right"; ctx.fillStyle = "#fff4e8"; ctx.font = "800 24px sans-serif";
+  ctx.fillText(Math.floor(dist) + " m", W - 16, 36);
+  ctx.fillStyle = "rgba(255,244,232,.75)"; ctx.font = "700 16px sans-serif"; ctx.fillText("Best " + best, W - 16, 62);
   // boost meter + combo
   ctx.fillStyle = "rgba(0,0,0,.4)"; ctx.fillRect(W / 2 - 100, H - 112, 200, 12);
   ctx.fillStyle = boost > 25 ? "#ffb703" : "#ff5a36"; ctx.fillRect(W / 2 - 100, H - 112, 2 * boost, 12);
-  if (combo > 1) { ctx.textAlign = "center"; ctx.fillStyle = "#ffd84a"; ctx.font = "800 22px sans-serif"; ctx.fillText("Combo x" + Math.min(combo, 8), W / 2, 118); }
+  if (combo > 1) { ctx.textAlign = "center"; ctx.fillStyle = "#ffd84a"; ctx.font = "800 22px sans-serif"; ctx.fillText("Combo x" + Math.min(combo, 8), W / 2, 100); }
   if (state === "racing") { drawPad(70, -1, padL); drawPad(W - 70, 1, padR); }
 }
 
@@ -322,13 +323,15 @@ function draw() {
     ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 2;
     for (let i = 0; i < 12; i++) { const y = rand(0, H), x = rand(0, W); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 70); ctx.stroke(); }
   }
-  drawFinish();
   rings.forEach((r) => {
     ctx.globalAlpha = r.done && !r.got ? .3 : r.got ? .25 : 1;
     ctx.strokeStyle = "#ffcf33"; ctx.lineWidth = 8; ctx.shadowColor = "#ffcf33"; ctx.shadowBlur = 14;
     ctx.beginPath(); ctx.ellipse(r.x, r.y, r.r, 14, 0, 0, 7); ctx.stroke();
     ctx.shadowBlur = 0; ctx.globalAlpha = 1;
   });
+  ctx.font = "800 46px sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ff3b5c"; ctx.shadowColor = "#ff3b5c"; ctx.shadowBlur = 14;
+  pickups.forEach((p) => ctx.fillText("\u2665", p.x, p.y + 16));
+  ctx.shadowBlur = 0;
   obstacles.forEach(drawObstacle);
   trail.forEach((p) => { ctx.fillStyle = p.b ? "rgba(255,170,60," + p.l * .5 + ")" : "rgba(255,255,255," + p.l * .35 + ")"; ctx.beginPath(); ctx.arc(p.x, p.y, 3 + (1 - p.l) * 8, 0, 7); ctx.fill(); });
   drawPlane();
