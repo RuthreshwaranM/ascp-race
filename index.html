@@ -14,30 +14,29 @@
     <!-- Start screen -->
     <div id="menu" class="overlay">
       <h1>Akasa Air Race</h1>
-      <p>Your aircraft flies north. Hold the <b>left</b> or <b>right</b> side of the screen to steer (use both thumbs).<br>
+      <p>Your aircraft flies north and the race never ends. Hold the <b>left</b> or <b>right</b> side of the screen to steer (use both thumbs).<br>
          On a keyboard use the arrow keys or A / D.<br>
-         Fly through gold rings to fill your boost, then press BOOST (or Space).<br>
-         Dodge the oncoming Air India and IndiGo flights and beat 3 rivals to the finish line.</p>
+         Fly through gold rings for boost and points, grab hearts for extra lives, and dodge the oncoming Air India and IndiGo flights.<br>
+         Score = distance + rings. The further you fly, the harder it gets.</p>
       <div class="pilot">Pilot: <b id="pilotName">-</b>
         <button id="editNameBtn" class="small-btn">Edit name</button></div>
-      <button id="playBtn">Start race</button>
+      <button id="playBtn">Start flying</button>
       <button id="boardBtn" class="ghost-btn">Leaderboard</button>
-      <small>Best time: <span id="bestMenu">--</span></small>
+      <small>Best score: <span id="bestMenu">0</span></small>
     </div>
 
-    <!-- Finish / crash screen -->
+    <!-- Crash screen -->
     <div id="result" class="overlay hidden">
       <img id="resImg" alt="" style="display:none">
-      <h2 id="resTitle">Finished</h2>
+      <h2 id="resTitle">Crashed out</h2>
       <div class="stats">
-        <div><span>Place</span><b id="resPlace">-</b></div>
-        <div><span>Time</span><b id="resTime">-</b></div>
+        <div><span>Distance</span><b id="resDist">-</b></div>
         <div><span>Score</span><b id="resScore">0</b></div>
-        <div><span>Best time</span><b id="resBest">-</b></div>
+        <div><span>Best score</span><b id="resBest">0</b></div>
       </div>
       <div id="rankLine" class="rankLine"></div>
       <div id="topLine" class="topLine"></div>
-      <button id="retryBtn">Race again</button>
+      <button id="retryBtn">Fly again</button>
       <button id="boardBtn2" class="ghost-btn">Leaderboard</button>
     </div>
 
